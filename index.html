@@ -1,0 +1,1365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Particle Ariden</title>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            color: white;
+            cursor: grab; /* 鼠标样式提示可拖动 */
+        }
+        body:active {
+            cursor: grabbing; /* 拖动时鼠标样式 */
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            background: radial-gradient(circle at center, #050505 0%, #0b0b10 100%);
+        }
+
+        #ui-layer {
+            position: absolute;
+            top: 30px;
+            left: 30px;
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        .glass-panel {
+            background: rgba(5, 5, 5, 0.7);
+            backdrop-filter: blur(12px);
+            padding: 24px;
+            border-radius: 2px;
+            border-left: 2px solid #ff3b30;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9);
+            max-width: 280px;
+        }
+
+        h1 {
+            font-weight: 700;
+            font-size: 1.8rem;
+            margin: 0 0 10px 0;
+            color: #ff3b30;
+            letter-spacing: 4px;
+            text-transform: uppercase;
+        }
+
+        .status-text {
+            font-size: 0.85rem;
+            color: #888;
+            line-height: 1.6;
+            font-family: monospace;
+        }
+
+        .highlight {
+            color: #ff3b30;
+            font-weight: bold;
+        }
+
+        #top-controls {
+            position: absolute;
+            top: 26px;
+            right: 28px;
+            z-index: 20;
+            pointer-events: auto;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        #fullscreen-btn,
+        #petrovascope-btn {
+            background: transparent;
+            border: 1px solid rgba(255, 59, 48, 0.35);
+            color: #ff3b30;
+            padding: 11px 22px;
+            font-size: 0.8rem;
+            transition: all 0.4s ease;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            backdrop-filter: blur(8px);
+            background: rgba(0, 0, 0, 0.42);
+            border-radius: 999px;
+        }
+
+        #fullscreen-btn {
+            cursor: pointer;
+        }
+
+        #fullscreen-btn:hover {
+            background: rgba(255, 59, 48, 0.1);
+            border-color: #ff3b30;
+            box-shadow: 0 0 15px rgba(255, 59, 48, 0.25);
+        }
+
+        #petrovascope-btn {
+            cursor: default;
+            background: rgba(255, 59, 48, 0.12);
+            border-color: #ff3b30;
+            box-shadow: 0 0 15px rgba(255, 59, 48, 0.18);
+        }
+
+        #loading {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 20;
+            text-align: center;
+            color: #444;
+            font-size: 0.8rem;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+        }
+
+        #fps-counter {
+            position: absolute;
+            bottom: 12px;
+            left: 30px;
+            color: #555;
+            font-family: monospace;
+            font-size: 10px;
+            z-index: 10;
+            text-align: left;
+            pointer-events: none;
+        }
+
+        .input_video { display: none; }
+
+        #control-tips {
+            position: absolute;
+            bottom: 34px;
+            left: 30px;
+            z-index: 10;
+            font-size: 0.7rem;
+            color: #888;
+            font-family: monospace;
+            pointer-events: none;
+            line-height: 1.5;
+        }
+
+        #optics-panel {
+            position: absolute;
+            right: 34px;
+            bottom: 34px;
+            z-index: 20;
+            width: 132px;
+            height: 344px;
+            pointer-events: auto;
+            background: transparent;
+            border: 0;
+            border-radius: 0;
+        }
+
+        #optics-panel::before,
+        #optics-panel::after {
+            content: none;
+        }
+
+        #optics-title {
+            position: absolute;
+            left: 18px;
+            bottom: 4px;
+            color: rgba(255, 59, 48, 0.9);
+            font-family: monospace;
+            font-size: 13px;
+            letter-spacing: 0.36em;
+        }
+
+        #optics-rail {
+            position: absolute;
+            left: 48px;
+            top: 18px;
+            width: 18px;
+            height: 268px;
+        }
+
+        #optics-slider {
+            position: absolute;
+            inset: 0;
+            margin: 0;
+            width: 18px;
+            height: 268px;
+            z-index: 2;
+            writing-mode: vertical-lr;
+            direction: rtl;
+            appearance: none;
+            -webkit-appearance: none;
+            background: transparent;
+            outline: none;
+            border: none;
+            box-shadow: none;
+            cursor: ns-resize;
+        }
+
+        #optics-slider::-webkit-slider-runnable-track {
+            width: 1px;
+            border-radius: 999px;
+            background: rgba(255, 59, 48, 0.5);
+            border: none;
+            box-shadow: none;
+        }
+
+        #optics-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 0;
+            height: 0;
+            border-radius: 0;
+            background: transparent;
+            border: 0;
+            box-shadow: none;
+            opacity: 0;
+        }
+
+        #optics-slider::-moz-range-track {
+            width: 1px;
+            border-radius: 999px;
+            background: rgba(255, 59, 48, 0.5);
+        }
+
+        #optics-slider::-moz-range-thumb {
+            width: 0;
+            height: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            box-shadow: none;
+            opacity: 0;
+        }
+
+        #optics-marker {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            width: 14px;
+            height: 14px;
+            border: 1.5px solid #ff3b30;
+            background: transparent;
+            box-shadow: 0 0 8px rgba(255, 59, 48, 0.5);
+            transform: translateX(-50%);
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        #optics-readout {
+            position: absolute;
+            left: 46px;
+            top: 120px;
+            min-width: 50px;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: rgba(255, 59, 48, 0.9);
+            font-family: monospace;
+            font-size: 0.72rem;
+            text-align: left;
+            transform: translateY(-50%);
+            pointer-events: none;
+        }
+
+        #optics-guide {
+            position: absolute;
+            left: 82px;
+            top: 28px;
+            width: 16px;
+            height: 216px;
+            pointer-events: none;
+        }
+
+        .optics-tick {
+            position: absolute;
+            left: 0;
+            width: 10px;
+            height: 1px;
+            background: rgba(255, 255, 255, 0.32);
+        }
+
+        .optics-tick.major {
+            width: 14px;
+            background: rgba(255, 59, 48, 0.1);
+        }
+
+        .optics-tick.tick-1 { top: 0; }
+        .optics-tick.tick-2 { top: 30px; }
+        .optics-tick.tick-3 { top: 61px; }
+        .optics-tick.tick-4 { top: 92px; }
+        .optics-tick.tick-5 { top: 123px; }
+        .optics-tick.tick-6 { top: 154px; }
+        .optics-tick.tick-7 { top: 185px; }
+        .optics-tick.tick-8 { top: 216px; }
+
+        #optics-slider::-moz-focus-outer {
+            border: 0;
+        }
+    </style>
+</head>
+<body>
+
+    <video class="input_video"></video>
+    <div id="loading">
+        Building Ariden particle shell...
+    </div>
+
+    <div id="ui-layer">
+        <div class="glass-panel">
+            <h1>Ariden</h1>
+            <div class="status-text">
+                <span id="status-indicator" style="color:#ff3b30;font-weight:700;">infrared locked</span><br><br>
+
+                <span style="color:#ffffff;font-weight:700;">Adrian</span>, the super-earth from <i>Project Hail Mary</i><br>
+                Vast <span style="color:#39FF14;font-weight:700;">green storm bands</span> coil across its heavy atmosphere<br>
+                <span style="color:#ffffff;font-weight:700;">Radius:</span> ~1.6x Earth | <span style="color:#ffffff;font-weight:700;">Gravity:</span> ~1.4 g<br>
+                Low-density <span style="color:#39FF14;font-weight:700;">Astrophage</span> gives the planet its green glow<br>
+                Under Petrovascope, dense Astrophage burns <span style="color:#ff3b30;font-weight:700;">red</span> like stars inside the storm
+            </div>
+        </div>
+    </div>
+
+    <div id="control-tips">
+        🖱️ Mouse wheel = zoom | Drag up/down = pitch | Drag left/right = Y-axis rotation<br>
+        ✋ Hand gesture = zoom + pitch
+    </div>
+
+    <div id="fps-counter">Engine: ultra mode | Target: Ariden super-earth</div>
+
+    <div id="top-controls">
+        <button id="petrovascope-btn" type="button" aria-pressed="true">PETROVASCOPE ON</button>
+        <button id="fullscreen-btn" onclick="toggleFullScreen()">ENTER FULLSCREEN</button>
+    </div>
+
+    <div id="optics-panel">
+        <div id="optics-rail">
+            <input id="optics-slider" type="range" min="0.5" max="2.0" step="0.01" value="1.00" aria-label="OPTICS zoom">
+            <div id="optics-marker" aria-hidden="true"></div>
+            <div id="optics-readout">1.00x</div>
+        </div>
+        <div id="optics-guide">
+            <div class="optics-tick major tick-1"></div>
+            <div class="optics-tick tick-2"></div>
+            <div class="optics-tick tick-3"></div>
+            <div class="optics-tick tick-4"></div>
+            <div class="optics-tick major tick-5"></div>
+            <div class="optics-tick tick-6"></div>
+            <div class="optics-tick tick-7"></div>
+            <div class="optics-tick tick-8"></div>
+        </div>
+        <div id="optics-title">OPTICS</div>
+    </div>
+
+    <div id="canvas-container"></div>
+
+    <script type="x-shader/x-vertex" id="vertexshader">
+        attribute float size;
+        attribute float opacityAttr;
+        attribute float aRandomId;
+        attribute float aSeed;
+        attribute float aBurstPhase;
+        attribute float aBurstPower;
+
+        varying vec3 vColor;
+        varying float vDist;
+        varying float vOpacity;
+        uniform float uTime;
+        uniform float uScale;
+        uniform float uRotationX;
+        uniform float uRotationY;
+        uniform float uLayerType;
+        uniform vec3 uPrimaryGreen;
+        uniform vec3 uSecondaryGreen;
+        uniform vec3 uDeepGreen;
+        uniform vec3 uRustOrange;
+        uniform vec3 uRustRed;
+        uniform vec3 uHotCore;
+
+        mat2 rotate2d(float _angle){
+            return mat2(cos(_angle),-sin(_angle),
+                        sin(_angle),cos(_angle));
+        }
+
+        vec3 mod289(vec3 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 mod289(vec4 x) { return x - floor(x * (1.0 / 289.0)) * 289.0; }
+        vec4 permute(vec4 x) { return mod289(((x * 34.0) + 1.0) * x); }
+        vec4 taylorInvSqrt(vec4 r) { return 1.79284291400159 - 0.85373472095314 * r; }
+
+        float snoise(vec3 v) {
+            const vec2 C = vec2(1.0 / 6.0, 1.0 / 3.0);
+            const vec4 D = vec4(0.0, 0.5, 1.0, 2.0);
+
+            vec3 i = floor(v + dot(v, C.yyy));
+            vec3 x0 = v - i + dot(i, C.xxx);
+            vec3 g = step(x0.yzx, x0.xyz);
+            vec3 l = 1.0 - g;
+            vec3 i1 = min(g.xyz, l.zxy);
+            vec3 i2 = max(g.xyz, l.zxy);
+
+            vec3 x1 = x0 - i1 + C.xxx;
+            vec3 x2 = x0 - i2 + C.yyy;
+            vec3 x3 = x0 - D.yyy;
+
+            i = mod289(i);
+            vec4 p = permute(permute(permute(
+                        i.z + vec4(0.0, i1.z, i2.z, 1.0))
+                      + i.y + vec4(0.0, i1.y, i2.y, 1.0))
+                      + i.x + vec4(0.0, i1.x, i2.x, 1.0));
+
+            float n_ = 1.0 / 7.0;
+            vec3 ns = n_ * D.wyz - D.xzx;
+
+            vec4 j = p - 49.0 * floor(p * ns.z * ns.z);
+            vec4 x_ = floor(j * ns.z);
+            vec4 y_ = floor(j - 7.0 * x_);
+
+            vec4 x = x_ * ns.x + ns.yyyy;
+            vec4 y = y_ * ns.x + ns.yyyy;
+            vec4 h = 1.0 - abs(x) - abs(y);
+
+            vec4 b0 = vec4(x.xy, y.xy);
+            vec4 b1 = vec4(x.zw, y.zw);
+
+            vec4 s0 = floor(b0) * 2.0 + 1.0;
+            vec4 s1 = floor(b1) * 2.0 + 1.0;
+            vec4 sh = -step(h, vec4(0.0));
+
+            vec4 a0 = b0.xzyw + s0.xzyw * sh.xxyy;
+            vec4 a1 = b1.xzyw + s1.xzyw * sh.zzww;
+
+            vec3 p0 = vec3(a0.xy, h.x);
+            vec3 p1 = vec3(a0.zw, h.y);
+            vec3 p2 = vec3(a1.xy, h.z);
+            vec3 p3 = vec3(a1.zw, h.w);
+
+            vec4 norm = taylorInvSqrt(vec4(dot(p0, p0), dot(p1, p1), dot(p2, p2), dot(p3, p3)));
+            p0 *= norm.x;
+            p1 *= norm.y;
+            p2 *= norm.z;
+            p3 *= norm.w;
+
+            vec4 m = max(0.6 - vec4(dot(x0, x0), dot(x1, x1), dot(x2, x2), dot(x3, x3)), 0.0);
+            m = m * m;
+            return 42.0 * dot(m * m, vec4(dot(p0, x0), dot(p1, x1), dot(p2, x2), dot(p3, x3)));
+        }
+
+        float fbm(vec3 p) {
+            float value = 0.0;
+            float amplitude = 0.5;
+            for (int i = 0; i < 4; i++) {
+                value += amplitude * snoise(p);
+                p *= 2.02;
+                amplitude *= 0.5;
+            }
+            return value;
+        }
+
+        float remapClamped(float value, float inMin, float inMax, float outMin, float outMax) {
+            float t = clamp((value - inMin) / (inMax - inMin), 0.0, 1.0);
+            return mix(outMin, outMax, t);
+        }
+
+        void main() {
+            float normScaleLOD = clamp((uScale - 2.4) / 7.2, 0.0, 1.0);
+
+            vec3 basePos = position;
+            vec3 dir = normalize(basePos + vec3(0.0001));
+            float baseRadius = length(basePos);
+            float timeSeed = uTime * 0.28;
+            float n1 = fbm(dir * 3.2 + vec3(aSeed * 4.9, timeSeed, aSeed * 2.7));
+            float n1Fine = snoise(dir * 10.5 + vec3(timeSeed * 1.7, aSeed * 8.1, aSeed * 5.3));
+            float n2 = snoise(dir * 1.35 + vec3(aSeed * 3.1, timeSeed * 0.4, aSeed * 6.7));
+
+            vec3 color = uPrimaryGreen;
+            float opacity = opacityAttr;
+            float pointSize = size;
+            vec3 pos = basePos;
+            float densityMask = 1.0;
+
+            if (uLayerType < 0.5) {
+                float shapeNoise = n1 * 0.68 + n1Fine * 0.32;
+                float pulse = sin(uTime * 0.9 + aSeed * 18.0) * 0.08;
+                float radius = baseRadius + shapeNoise * 0.38 + pulse;
+                densityMask = remapClamped(n1 * 0.65 + n2 * 0.35, -1.0, 1.0, 0.62, 1.0);
+
+                if (n2 > 0.42) {
+                    color = mix(uRustOrange, uRustRed, remapClamped(n2, 0.42, 0.75, 0.0, 1.0));
+                } else if (n1 > 0.2) {
+                    color = mix(uPrimaryGreen, uSecondaryGreen, remapClamped(n1, 0.2, 0.8, 0.0, 1.0) * 0.35);
+                } else {
+                    color = mix(uDeepGreen, uPrimaryGreen, remapClamped(n1, -0.6, 0.2, 0.0, 1.0));
+                }
+
+                float hotMix = smoothstep(0.18, 0.9, n1Fine) * 0.15;
+                color = mix(color, uHotCore, hotMix);
+                pos = dir * radius;
+                opacity *= 1.32 + hotMix * 0.22;
+                pointSize *= 0.76 + hotMix * 0.1;
+            } else if (uLayerType < 1.5) {
+                float density = 1.0 - smoothstep(4.0, 5.5, baseRadius);
+                float compactNoise = snoise(basePos * 1.15 + vec3(aSeed * 1.7, timeSeed * 1.2, aSeed * 4.2));
+                densityMask = remapClamped(compactNoise + density * 0.7, -1.0, 1.0, 0.68, 1.0);
+                pos = basePos * (1.0 + compactNoise * 0.055);
+                color = mix(uRustRed, uSecondaryGreen, clamp(0.18 + density * 0.24 + compactNoise * 0.1, 0.0, 0.35));
+                color = mix(color, uHotCore, clamp(0.04 + density * 0.08 + compactNoise * 0.03, 0.0, 0.15));
+                opacity *= 1.18 + density * 0.3;
+                pointSize *= 0.82 + density * 0.24;
+            } else if (uLayerType < 2.5) {
+                float coronaNoise = snoise(dir * 4.0 + vec3(timeSeed * 1.25, aSeed * 5.8, aSeed * 1.9));
+                float coronaFine = snoise(dir * 12.0 + vec3(aSeed * 7.3, timeSeed * 2.0, aSeed * 3.4));
+                vec3 tangent = normalize(cross(dir, vec3(0.0, 1.0, 0.35)));
+                float breath = 0.5 + 0.5 * sin(uTime * 1.3 + aSeed * 14.0);
+                densityMask = remapClamped(coronaNoise * 0.8 + coronaFine * 0.2, -1.0, 1.0, 0.45, 0.86);
+                pos = dir * (baseRadius + 0.35 + coronaNoise * 0.75 + breath * 0.4) + tangent * coronaFine * 0.18;
+                color = mix(uPrimaryGreen, uSecondaryGreen, remapClamped(coronaNoise, -0.8, 0.8, 0.0, 1.0) * 0.35);
+                color = mix(color, uDeepGreen, smoothstep(0.0, 0.95, coronaFine) * 0.42);
+                color = mix(color, uHotCore, smoothstep(0.62, 1.0, coronaNoise) * 0.15);
+                opacity *= 0.5 + breath * 0.14;
+                pointSize *= 0.6 + breath * 0.14;
+            } else if (uLayerType < 3.5) {
+                float ribbonNoise = snoise(basePos * 0.22 + vec3(timeSeed * 0.7, aSeed * 6.1, aSeed * 3.8));
+                densityMask = remapClamped(ribbonNoise, -1.0, 1.0, 0.42, 0.88);
+                pos = basePos + normalize(basePos) * ribbonNoise * 0.22;
+                color = mix(uPrimaryGreen, uSecondaryGreen, 0.35 + 0.08 * sin(aSeed * 21.0 + uTime * 0.8));
+                color = mix(color, uRustOrange, smoothstep(0.48, 0.95, ribbonNoise) * 0.35);
+                color = mix(color, uRustRed, smoothstep(0.72, 1.0, ribbonNoise) * 0.18);
+                color = mix(color, uHotCore, smoothstep(0.82, 1.0, ribbonNoise) * 0.15);
+                opacity *= 0.28 + 0.1 * sin(uTime * 1.4 + aSeed * 9.0);
+                pointSize *= 0.54;
+            } else if (uLayerType < 4.5) {
+                float veilNoise = snoise(dir * 5.2 + vec3(timeSeed * 0.45, aSeed * 9.1, aSeed * 4.6));
+                float veilFlow = fbm(basePos * 0.3 + vec3(aSeed * 2.4, timeSeed * 0.9, aSeed * 5.7));
+                vec3 tangentA = normalize(cross(dir, vec3(0.0, 1.0, 0.25)));
+                vec3 tangentB = normalize(cross(dir, tangentA));
+                float veilLift = 0.9 + veilNoise * 0.75 + veilFlow * 0.35;
+                densityMask = remapClamped(veilNoise * 0.75 + veilFlow * 0.25, -1.0, 1.0, 0.3, 0.78);
+                pos = dir * (baseRadius + veilLift)
+                    + tangentA * sin(uTime * 0.42 + aSeed * 10.0) * 0.32
+                    + tangentB * cos(uTime * 0.31 + aSeed * 13.0) * 0.26;
+                color = mix(uPrimaryGreen, uSecondaryGreen, clamp(0.28 + remapClamped(veilNoise, -1.0, 1.0, 0.0, 0.12), 0.24, 0.35));
+                color = mix(color, uHotCore, clamp(0.08 + remapClamped(veilFlow, -1.0, 1.0, 0.0, 0.07), 0.08, 0.15));
+                color = mix(color, uRustRed, 0.24);
+                opacity *= 0.12 + remapClamped(veilFlow, -1.0, 1.0, 0.04, 0.12);
+                pointSize *= 0.72 + remapClamped(veilNoise, -1.0, 1.0, 0.1, 0.45);
+            } else if (uLayerType < 5.5) {
+                vec3 edgeDir = normalize(basePos + vec3(0.0001));
+                vec3 tangentA = normalize(cross(edgeDir, vec3(0.2, 1.0, 0.1)));
+                vec3 tangentB = normalize(cross(edgeDir, tangentA));
+                float burstNoise = snoise(basePos * 0.58 + vec3(aSeed * 4.2, timeSeed * 1.7, aSeed * 2.8));
+                float burstCycle = fract(uTime * 0.12 + aBurstPhase);
+                float burstLife = clamp((burstCycle - aRandomId * 0.18) / (1.0 - aRandomId * 0.18), 0.0, 1.0);
+                float expand = smoothstep(0.0, 0.3, burstLife);
+                float fade = 1.0 - smoothstep(0.58, 0.98, burstLife);
+                float burstEnvelope = expand * fade;
+                float driftPulse = 0.5 + 0.5 * sin(uTime * 1.4 + aSeed * 11.0);
+                float outward = (0.04 + max(burstNoise, 0.0) * 0.12) + aBurstPower * (0.22 + burstLife * 1.9);
+                densityMask = mix(0.0, remapClamped(burstNoise, -1.0, 1.0, 0.7, 0.98), burstEnvelope);
+                pos = basePos
+                    + edgeDir * outward
+                    + tangentA * sin(uTime * 1.8 + aSeed * 8.0) * (0.05 + aBurstPower * 0.24) * driftPulse * burstEnvelope
+                    + tangentB * cos(uTime * 1.3 + aSeed * 10.0) * (0.04 + aBurstPower * 0.16) * (1.0 - driftPulse * 0.35) * burstEnvelope;
+
+                vec3 ashColor = mix(uSecondaryGreen, uHotCore, 0.68);
+                vec3 sparkColor = mix(uRustOrange, uHotCore, 0.52);
+                float sparkMix = clamp(0.18 + burstEnvelope * 0.44 + aBurstPower * 0.28 + max(burstNoise, 0.0) * 0.3, 0.0, 1.0);
+                color = mix(ashColor, sparkColor, sparkMix);
+                color = mix(color, uRustRed, 0.08);
+                opacity *= (0.05 + aBurstPower * 0.14 + max(burstNoise, 0.0) * 0.05) * burstEnvelope;
+                pointSize *= (0.05 + aBurstPower * 0.22 + max(burstNoise, 0.0) * 0.08) * (1.08 - burstLife * 0.28);
+            }
+
+            float visibilityThreshold = (0.58 + pow(normScaleLOD, 1.08) * 0.22) * densityMask;
+            if (aRandomId > visibilityThreshold) {
+                gl_Position = vec4(0.0);
+                gl_PointSize = 0.0;
+                return;
+            }
+
+            float layerSpin = uLayerType > 1.5 ? 0.012 : 0.36;
+            float bodyAngle = uTime * layerSpin;
+            vec2 rotatedXZ = rotate2d(bodyAngle) * pos.xz;
+            pos.x = rotatedXZ.x;
+            pos.z = rotatedXZ.y;
+
+            float cy = cos(uRotationY);
+            float sy = sin(uRotationY);
+            float rx = pos.x * cy + pos.z * sy;
+            float rz = -pos.x * sy + pos.z * cy;
+            pos.x = rx;
+            pos.z = rz;
+
+            float cx = cos(uRotationX);
+            float sx = sin(uRotationX);
+            float ry = pos.y * cx - pos.z * sx;
+            rz = pos.y * sx + pos.z * cx;
+            pos.y = ry;
+            pos.z = rz;
+
+            vec4 mvPosition = modelViewMatrix * vec4(pos * uScale, 1.0);
+            float dist = -mvPosition.z;
+            vDist = dist;
+
+            float chaosThreshold = 14.0;
+            if (dist < chaosThreshold && dist > 0.1) {
+                float chaosIntensity = 1.0 - (dist / chaosThreshold);
+                chaosIntensity = pow(chaosIntensity, 2.4);
+
+                float highFreqTime = uTime * 18.0;
+                float noiseX = sin(highFreqTime + pos.x * 2.5 + aSeed * 5.0);
+                float noiseY = cos(highFreqTime + pos.y * 2.0 + aSeed * 3.0);
+                float noiseZ = sin(highFreqTime * 0.5 + pos.z * 2.5 + aSeed * 4.0);
+
+                vec3 noiseVec = vec3(noiseX, noiseY, noiseZ) * chaosIntensity * (uLayerType < 0.5 ? 0.08 : 0.04);
+                mvPosition.xyz += noiseVec;
+            }
+
+            gl_Position = projectionMatrix * mvPosition;
+
+            float zoomPointBoost = mix(0.82, 2.37, pow(normScaleLOD, 0.74));
+            float highZoomBoost = smoothstep(0.28, 0.52, normScaleLOD);
+            zoomPointBoost *= 1.0 + highZoomBoost * 0.28;
+            float screenPoint = pointSize * (278.0 / dist) * zoomPointBoost;
+            if (dist < 55.0) screenPoint *= 0.82;
+            gl_PointSize = clamp(screenPoint, 0.0, 162.0);
+
+            vColor = color;
+            vOpacity = opacity;
+        }
+    </script>
+
+    <script type="x-shader/x-fragment" id="fragmentshader">
+        varying vec3 vColor;
+        varying float vDist;
+        varying float vOpacity;
+        uniform float uLayerType;
+        void main() {
+            vec2 cxy = 2.0 * gl_PointCoord - 1.0;
+            float r = dot(cxy, cxy);
+            if (r > 1.0) discard;
+
+            float glow = pow(1.0 - r, 2.25);
+            float core = smoothstep(0.18, 0.0, sqrt(r));
+            vec3 finalColor = vColor * (0.72 + core * 0.16);
+
+            float depthAlpha = 1.0;
+            if (vDist < 10.0) depthAlpha = smoothstep(0.0, 10.0, vDist);
+
+            float alpha = glow * vOpacity * depthAlpha * 1.5;
+
+            gl_FragColor = vec4(finalColor, alpha);
+        }
+    </script>
+
+    <script type="x-shader/x-vertex" id="starVertexShader">
+        attribute float size;
+        attribute vec3 customColor;
+        varying vec3 vColor;
+        uniform float uTime;
+
+        void main() {
+            vColor = customColor;
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            float dist = -mvPosition.z;
+            gl_PointSize = size * (1000.0 / dist);
+            gl_PointSize = clamp(gl_PointSize, 1.0, 8.0);
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+
+    <script type="x-shader/x-fragment" id="starFragmentShader">
+        varying vec3 vColor;
+        uniform float uTime;
+        float random(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123); }
+        void main() {
+            vec2 cxy = 2.0 * gl_PointCoord - 1.0;
+            float r = dot(cxy, cxy);
+            if (r > 1.0) discard;
+
+            float noise = random(gl_FragCoord.xy);
+            float twinkle = 0.7 + 0.3 * sin(uTime * 2.0 + noise * 10.0);
+
+            float glow = 1.0 - r;
+            glow = pow(glow, 1.5);
+
+            gl_FragColor = vec4(vColor * twinkle, glow * 0.8);
+        }
+    </script>
+
+    <script type="x-shader/x-vertex" id="planetVertexShader">
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewPosition;
+        void main() {
+            vUv = uv;
+            vNormal = normalize(normalMatrix * normal);
+            vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
+            vViewPosition = -mvPosition.xyz;
+            gl_Position = projectionMatrix * mvPosition;
+        }
+    </script>
+
+    <script type="x-shader/x-fragment" id="planetFragmentShader">
+        uniform vec3 color1;
+        uniform vec3 color2;
+        uniform float noiseScale;
+        uniform vec3 lightDir;
+        uniform float atmosphere;
+
+        varying vec2 vUv;
+        varying vec3 vNormal;
+        varying vec3 vViewPosition;
+
+        float random(vec2 st) { return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123); }
+        float noise(vec2 st) {
+            vec2 i = floor(st);
+            vec2 f = fract(st);
+            float a = random(i);
+            float b = random(i + vec2(1.0, 0.0));
+            float c = random(i + vec2(0.0, 1.0));
+            float d = random(i + vec2(1.0, 1.0));
+            vec2 u = f * f * (3.0 - 2.0 * f);
+            return mix(a, b, u.x) + (c - a)* u.y * (1.0 - u.x) + (d - b) * u.x * u.y;
+        }
+
+        float fbm(vec2 st) {
+            float value = 0.0;
+            float amplitude = 0.5;
+            for (int i = 0; i < 5; i++) {
+                value += amplitude * noise(st);
+                st *= 2.0;
+                amplitude *= 0.5;
+            }
+            return value;
+        }
+
+        void main() {
+            float n = fbm(vUv * noiseScale);
+            vec3 albedo = mix(color1, color2, n);
+
+            vec3 normal = normalize(vNormal);
+            vec3 light = normalize(lightDir);
+            float diff = max(dot(normal, light), 0.05);
+
+            vec3 viewDir = normalize(vViewPosition);
+            float fresnel = pow(1.0 - dot(viewDir, normal), 3.0);
+
+            vec3 finalColor = albedo * diff + atmosphere * vec3(1.0, 1.0, 1.0) * fresnel;
+
+            gl_FragColor = vec4(finalColor, 1.0);
+        }
+    </script>
+
+    <script>
+        let scene, camera, renderer, stars, nebula;
+        let planetGroup;
+        let starUniforms;
+        let aridenLayers = [];
+        let aridenUniforms = [];
+
+        let targetScale = 1.0;
+        let targetRotX = 0.4;
+        let currentScale = 1.0;
+        let currentRotX = 0.4;
+        const minScale = 0.5;
+        const maxScale = 2.0;
+        const opticsThumbSize = 26;
+        const renderScaleMultiplier = 4.8;
+        const COLORS = {
+            primaryGreen: new THREE.Color('#ff3b30'),
+            secondaryGreen: new THREE.Color('#ff9f99'),
+            deepGreen: new THREE.Color('#6b1613'),
+            rustOrange: new THREE.Color('#C9611B'),
+            rustRed: new THREE.Color('#7A1F12'),
+            hotCore: new THREE.Color('#ffffff')
+        };
+
+        let targetRotY = 0.0;
+        let currentRotY = 0.0;
+        const rotYStep = 0.005;
+
+        let isHandDetected = false;
+
+        let isMouseDown = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        const scaleStep = 0.08;
+        const rotStep = 0.005;
+
+        const videoElement = document.getElementsByClassName('input_video')[0];
+        const statusElement = document.getElementById('status-indicator');
+        const loadingElement = document.getElementById('loading');
+        const opticsSlider = document.getElementById('optics-slider');
+        const opticsMarker = document.getElementById('optics-marker');
+        const opticsReadout = document.getElementById('optics-readout');
+        const fullscreenButton = document.getElementById('fullscreen-btn');
+
+        function clampScale(value) {
+            return Math.max(minScale, Math.min(maxScale, value));
+        }
+
+        function updateOpticsUI(value) {
+            const scaleValue = clampScale(value);
+            opticsSlider.value = scaleValue.toFixed(2);
+            opticsReadout.textContent = `${scaleValue.toFixed(2)}x`;
+
+            const min = Number(opticsSlider.min);
+            const max = Number(opticsSlider.max);
+            const ratio = (scaleValue - min) / (max - min);
+            const travel = Math.max(0, opticsSlider.offsetHeight - opticsThumbSize);
+            const markerTop = (1 - ratio) * travel;
+            opticsMarker.style.top = `${markerTop}px`;
+            opticsReadout.style.top = `${markerTop + opticsThumbSize / 2}px`;
+        }
+
+        function initThree() {
+            const container = document.getElementById('canvas-container');
+
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x020202, 0.00015);
+
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 1, 10000);
+            camera.position.z = 100;
+            camera.lookAt(0, 0, 0);
+
+            initAriden();
+            initStarfield();
+
+            renderer = new THREE.WebGLRenderer({
+                antialias: true,
+                alpha: true,
+                powerPreference: "high-performance"
+            });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setClearColor(0x000000, 0);
+            container.appendChild(renderer.domElement);
+
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                updateOpticsUI(targetScale);
+            });
+
+            document.addEventListener('mousedown', (e) => {
+                if (e.target.closest('#top-controls') || e.target.closest('#optics-panel')) return;
+                isMouseDown = true;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+            });
+
+            document.addEventListener('mousemove', (e) => {
+                if (isMouseDown) {
+                    const deltaX = e.clientX - lastMouseX;
+                    targetRotY += deltaX * rotYStep;
+                    lastMouseX = e.clientX;
+
+                    const deltaY = e.clientY - lastMouseY;
+                    targetRotX = Math.max(-0.6, Math.min(1.0, targetRotX + deltaY * rotStep));
+                    lastMouseY = e.clientY;
+                }
+            });
+
+            document.addEventListener('mouseup', () => {
+                isMouseDown = false;
+            });
+
+            document.addEventListener('wheel', (e) => {
+                if (e.target.closest('#optics-panel')) return;
+                e.preventDefault();
+                if (e.deltaY < 0) {
+                    targetScale = clampScale(targetScale + scaleStep);
+                } else {
+                    targetScale = clampScale(targetScale - scaleStep);
+                }
+            }, { passive: false });
+
+            opticsSlider.addEventListener('input', () => {
+                targetScale = clampScale(Number(opticsSlider.value));
+                updateOpticsUI(targetScale);
+            });
+
+            updateOpticsUI(targetScale);
+            updateFullscreenButton();
+
+            animate();
+        }
+
+        function updateFullscreenButton() {
+            fullscreenButton.textContent = document.fullscreenElement ? 'EXIT FULLSCREEN' : 'ENTER FULLSCREEN';
+        }
+
+        function randomDirection() {
+            const u = Math.random();
+            const v = Math.random();
+            const theta = 2.0 * Math.PI * u;
+            const phi = Math.acos(2.0 * v - 1.0);
+            return new THREE.Vector3(
+                Math.sin(phi) * Math.cos(theta),
+                Math.cos(phi),
+                Math.sin(phi) * Math.sin(theta)
+            );
+        }
+
+        function createAridenMaterial(layerType) {
+            const uniforms = {
+                uTime: { value: 0 },
+                uScale: { value: 1.0 },
+                uRotationX: { value: 0.4 },
+                uRotationY: { value: 0.0 },
+                uLayerType: { value: layerType },
+                uPrimaryGreen: { value: COLORS.primaryGreen },
+                uSecondaryGreen: { value: COLORS.secondaryGreen },
+                uDeepGreen: { value: COLORS.deepGreen },
+                uRustOrange: { value: COLORS.rustOrange },
+                uRustRed: { value: COLORS.rustRed },
+                uHotCore: { value: COLORS.hotCore }
+            };
+
+            const material = new THREE.ShaderMaterial({
+                depthWrite: false,
+                blending: THREE.AdditiveBlending,
+                transparent: true,
+                uniforms,
+                vertexShader: document.getElementById('vertexshader').textContent,
+                fragmentShader: document.getElementById('fragmentshader').textContent
+            });
+
+            aridenUniforms.push(uniforms);
+            return material;
+        }
+
+        function buildPointGeometry(count, pointFactory) {
+            const positions = new Float32Array(count * 3);
+            const sizes = new Float32Array(count);
+            const opacities = new Float32Array(count);
+            const randomIds = new Float32Array(count);
+            const seeds = new Float32Array(count);
+            const burstPhases = new Float32Array(count);
+            const burstPowers = new Float32Array(count);
+
+            for (let i = 0; i < count; i++) {
+                const point = pointFactory(i);
+                positions[i * 3] = point.position.x;
+                positions[i * 3 + 1] = point.position.y;
+                positions[i * 3 + 2] = point.position.z;
+                sizes[i] = point.size;
+                opacities[i] = point.opacity;
+                randomIds[i] = Math.random();
+                seeds[i] = Math.random() * 1000.0;
+                burstPhases[i] = point.burstPhase ?? Math.random();
+                burstPowers[i] = point.burstPower ?? Math.random();
+            }
+
+            const geometry = new THREE.BufferGeometry();
+            geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            geometry.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+            geometry.setAttribute('opacityAttr', new THREE.BufferAttribute(opacities, 1));
+            geometry.setAttribute('aRandomId', new THREE.BufferAttribute(randomIds, 1));
+            geometry.setAttribute('aSeed', new THREE.BufferAttribute(seeds, 1));
+            geometry.setAttribute('aBurstPhase', new THREE.BufferAttribute(burstPhases, 1));
+            geometry.setAttribute('aBurstPower', new THREE.BufferAttribute(burstPowers, 1));
+            return geometry;
+        }
+
+        function createPhotosphereGeometry() {
+            return buildPointGeometry(20400, () => {
+                const dir = randomDirection();
+                const radius = 6.0 + (Math.random() - 0.5) * 0.08;
+                return {
+                    position: dir.multiplyScalar(radius),
+                    size: 0.72 + Math.random() * 0.56,
+                    opacity: 0.82 + Math.random() * 0.18
+                };
+            });
+        }
+
+        function createDenseCoreGeometry() {
+            return buildPointGeometry(3360, () => {
+                const dir = randomDirection();
+                const radius = 4.0 + Math.random() * 1.5;
+                return {
+                    position: dir.multiplyScalar(radius),
+                    size: 1.15 + Math.random() * 0.75,
+                    opacity: 0.72 + Math.random() * 0.18
+                };
+            });
+        }
+
+        function createCoronaGeometry() {
+            return buildPointGeometry(12000, () => {
+                const dir = randomDirection();
+                const radius = 6.4 + Math.random() * 1.7;
+                return {
+                    position: dir.multiplyScalar(radius),
+                    size: 0.55 + Math.random() * 0.45,
+                    opacity: 0.3 + Math.random() * 0.2
+                };
+            });
+        }
+
+        function cubicBezier(p0, p1, p2, p3, t) {
+            const inv = 1.0 - t;
+            return new THREE.Vector3()
+                .addScaledVector(p0, inv * inv * inv)
+                .addScaledVector(p1, 3.0 * inv * inv * t)
+                .addScaledVector(p2, 3.0 * inv * t * t)
+                .addScaledVector(p3, t * t * t);
+        }
+
+        function createRibbonGeometry() {
+            const ribbonCurves = [
+                [
+                    new THREE.Vector3(-7.8, 1.0, -1.8),
+                    new THREE.Vector3(-10.5, 5.0, 5.8),
+                    new THREE.Vector3(9.8, -4.4, -5.6),
+                    new THREE.Vector3(7.4, -0.8, 2.2)
+                ],
+                [
+                    new THREE.Vector3(-5.2, -6.8, 2.8),
+                    new THREE.Vector3(-1.8, -10.2, -8.2),
+                    new THREE.Vector3(2.6, 9.6, 7.0),
+                    new THREE.Vector3(5.0, 6.1, -2.4)
+                ],
+                [
+                    new THREE.Vector3(-2.0, 7.0, -7.0),
+                    new THREE.Vector3(8.2, 8.8, 0.6),
+                    new THREE.Vector3(-8.8, -8.0, 0.8),
+                    new THREE.Vector3(2.2, -7.0, 7.2)
+                ]
+            ];
+
+            return buildPointGeometry(3600, (index) => {
+                const ribbonIndex = index % ribbonCurves.length;
+                const sampleIndex = Math.floor(index / ribbonCurves.length);
+                const curve = ribbonCurves[ribbonIndex];
+                const t = sampleIndex / 1799;
+                const point = cubicBezier(curve[0], curve[1], curve[2], curve[3], t);
+                const normal = point.clone().normalize();
+                const jitter = randomDirection().multiplyScalar(0.08 + Math.random() * 0.12);
+                return {
+                    position: point.add(normal.multiplyScalar((Math.random() - 0.5) * 0.25)).add(jitter),
+                    size: 0.45 + Math.random() * 0.35,
+                    opacity: 0.18 + Math.random() * 0.1
+                };
+            });
+        }
+
+        function createVeilGeometry() {
+            return buildPointGeometry(5200, () => {
+                const dir = randomDirection();
+                const radius = 7.8 + Math.random() * 2.6;
+                const swirl = randomDirection().multiplyScalar(0.18 + Math.random() * 0.32);
+                return {
+                    position: dir.multiplyScalar(radius).add(swirl),
+                    size: 0.5 + Math.random() * 0.9,
+                    opacity: 0.16 + Math.random() * 0.14
+                };
+            });
+        }
+
+        function createEdgeSprayGeometry() {
+            const burstAnchors = Array.from({ length: 10 }, () => ({
+                dir: randomDirection(),
+                phase: Math.random(),
+                power: 0.5 + Math.random() * 0.5
+            }));
+            return buildPointGeometry(3840, () => {
+                const anchor = burstAnchors[Math.floor(Math.random() * burstAnchors.length)];
+                const edgeDir = anchor.dir.clone().add(randomDirection().multiplyScalar(0.06 + Math.random() * 0.18)).normalize();
+                const radius = 6.05 + Math.random() * 0.42;
+                const tangentDrift = randomDirection().multiplyScalar(0.02 + Math.random() * 0.16);
+                const burstStretch = Math.random() > 0.58 ? edgeDir.clone().multiplyScalar(0.08 + Math.random() * 0.95) : new THREE.Vector3();
+                const isSpark = Math.random() > 0.82;
+
+                return {
+                    position: edgeDir.multiplyScalar(radius).add(tangentDrift).add(burstStretch),
+                    size: isSpark ? 0.22 + Math.random() * 0.32 : 0.05 + Math.random() * 0.18,
+                    opacity: isSpark ? 0.2 + Math.random() * 0.14 : 0.08 + Math.random() * 0.08,
+                    burstPhase: anchor.phase,
+                    burstPower: anchor.power * (isSpark ? 1.0 : 0.72)
+                };
+            });
+        }
+
+        function registerAridenLayer(geometry, material) {
+            const points = new THREE.Points(geometry, material);
+            points.rotation.z = 11.0 * (Math.PI / 180);
+            scene.add(points);
+            aridenLayers.push(points);
+        }
+
+        function initAriden() {
+            aridenLayers.forEach((layer) => {
+                scene.remove(layer);
+                layer.geometry.dispose();
+                layer.material.dispose();
+            });
+            aridenLayers = [];
+            aridenUniforms = [];
+
+            registerAridenLayer(createPhotosphereGeometry(), createAridenMaterial(0.0));
+            registerAridenLayer(createDenseCoreGeometry(), createAridenMaterial(1.0));
+            registerAridenLayer(createCoronaGeometry(), createAridenMaterial(2.0));
+            registerAridenLayer(createRibbonGeometry(), createAridenMaterial(3.0));
+            registerAridenLayer(createVeilGeometry(), createAridenMaterial(4.0));
+            registerAridenLayer(createEdgeSprayGeometry(), createAridenMaterial(5.0));
+        }
+
+        function initStarfield() {
+            const starCount = 50000;
+            const geo = new THREE.BufferGeometry();
+            const pos = new Float32Array(starCount * 3);
+            const cols = new Float32Array(starCount * 3);
+            const sizes = new Float32Array(starCount);
+
+            const starColors = [
+                new THREE.Color('#ffffff'), new THREE.Color('#ffffff'),
+                new THREE.Color('#ffcc6f'), new THREE.Color('#ff7b7b')
+            ];
+
+            for(let i=0; i<starCount; i++) {
+                const r = 400 + Math.random() * 3000;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos(2 * Math.random() - 1);
+
+                pos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+                pos[i*3+1] = r * Math.cos(phi);
+                pos[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+
+                const colorType = Math.random();
+                let c;
+                if(colorType > 0.9) c = starColors[0]; else if(colorType > 0.6) c = starColors[1];
+                else if(colorType > 0.3) c = starColors[2]; else c = starColors[3];
+
+                cols[i*3] = c.r; cols[i*3+1] = c.g; cols[i*3+2] = c.b;
+                sizes[i] = 1.0 + Math.random() * 3.0;
+            }
+            geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+            geo.setAttribute('customColor', new THREE.BufferAttribute(cols, 3));
+            geo.setAttribute('size', new THREE.BufferAttribute(sizes, 1));
+
+            starUniforms = { uTime: { value: 0 } };
+            const mat = new THREE.ShaderMaterial({
+                uniforms: starUniforms,
+                vertexShader: document.getElementById('starVertexShader').textContent,
+                fragmentShader: document.getElementById('starFragmentShader').textContent,
+                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+            });
+            stars = new THREE.Points(geo, mat);
+            scene.add(stars);
+
+            const nebulaCount = 100;
+            const nebGeo = new THREE.BufferGeometry();
+            const nebPos = new Float32Array(nebulaCount * 3);
+            const nebCols = new Float32Array(nebulaCount * 3);
+            const nebSizes = new Float32Array(nebulaCount);
+            for(let i=0; i<nebulaCount; i++) {
+                const r = 800 + Math.random() * 2000;
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.PI / 2 + (Math.random() - 0.5) * 1.5;
+                nebPos[i*3] = r * Math.sin(phi) * Math.cos(theta);
+                nebPos[i*3+1] = r * Math.cos(phi);
+                nebPos[i*3+2] = r * Math.sin(phi) * Math.sin(theta);
+                const nc = new THREE.Color().setHSL(0.6 + Math.random()*0.2, 0.8, 0.05);
+                nebCols[i*3] = nc.r; nebCols[i*3+1] = nc.g; nebCols[i*3+2] = nc.b;
+                nebSizes[i] = 400.0 + Math.random() * 600.0;
+            }
+            nebGeo.setAttribute('position', new THREE.BufferAttribute(nebPos, 3));
+            nebGeo.setAttribute('customColor', new THREE.BufferAttribute(nebCols, 3));
+            nebGeo.setAttribute('size', new THREE.BufferAttribute(nebSizes, 1));
+            const nebShaderMat = new THREE.ShaderMaterial({
+                uniforms: {},
+                vertexShader: document.getElementById('starVertexShader').textContent,
+                fragmentShader: `
+                    varying vec3 vColor;
+                    void main() {
+                        vec2 cxy = 2.0 * gl_PointCoord - 1.0;
+                        float r = dot(cxy, cxy);
+                        if(r > 1.0) discard;
+                        float glow = pow(1.0 - r, 2.0);
+                        gl_FragColor = vec4(vColor, glow * 0.1);
+                    }
+                `,
+                transparent: true, depthWrite: false, blending: THREE.AdditiveBlending
+            });
+            nebula = new THREE.Points(nebGeo, nebShaderMat);
+            scene.add(nebula);
+        }
+
+        function initPlanets() {
+            planetGroup = new THREE.Group();
+            scene.add(planetGroup);
+
+            const vShader = document.getElementById('planetVertexShader').textContent;
+            const fShader = document.getElementById('planetFragmentShader').textContent;
+
+            createPlanet(planetGroup, vShader, fShader,
+                new THREE.Color('#b33a00'), new THREE.Color('#d16830'), 8.0,
+                { x: -300, y: 120, z: -450 }, 10, 0.3
+            );
+
+            createPlanet(planetGroup, vShader, fShader,
+                new THREE.Color('#001e4d'), new THREE.Color('#ffffff'), 5.0,
+                { x: 380, y: -100, z: -600 }, 14, 0.6
+            );
+
+            createPlanet(planetGroup, vShader, fShader,
+                new THREE.Color('#666666'), new THREE.Color('#aaaaaa'), 15.0,
+                { x: -180, y: -220, z: -350 }, 6, 0.1
+            );
+        }
+
+        function createPlanet(group, vShader, fShader, c1, c2, nScale, pos, radius, atmo) {
+            const geo = new THREE.SphereGeometry(radius, 48, 48);
+            const mat = new THREE.ShaderMaterial({
+                uniforms: {
+                    color1: { value: c1 },
+                    color2: { value: c2 },
+                    noiseScale: { value: nScale },
+                    lightDir: { value: new THREE.Vector3(1, 0.5, 1) },
+                    atmosphere: { value: atmo }
+                },
+                vertexShader: vShader,
+                fragmentShader: fShader
+            });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(pos.x, pos.y, pos.z);
+            group.add(mesh);
+        }
+
+        const clock = new THREE.Clock();
+        let autoIdleTime = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+            aridenUniforms.forEach((uniforms) => {
+                uniforms.uTime.value = elapsedTime;
+            });
+            if(starUniforms) starUniforms.uTime.value = elapsedTime;
+
+            if(stars) stars.rotation.y = elapsedTime * 0.005 + currentRotY * 0.5;
+            if(nebula) nebula.rotation.y = elapsedTime * 0.003 + currentRotY * 0.3;
+
+            if(planetGroup) {
+                planetGroup.children.forEach((planet, idx) => {
+                    planet.rotation.y = elapsedTime * (0.05 + idx * 0.02);
+                });
+                planetGroup.rotation.y = Math.sin(elapsedTime * 0.05) * 0.02 + currentRotY * 0.2;
+            }
+
+            const isMouseActive = isMouseDown || (targetScale !== 1.0 || targetRotX !== 0.4 || targetRotY !== 0.0);
+            if (!isHandDetected && !isMouseActive) {
+                autoIdleTime += 0.005;
+                targetScale = clampScale(1.0 + Math.sin(autoIdleTime) * 0.2);
+                targetRotX = 0.4 + Math.sin(autoIdleTime * 0.3) * 0.15;
+                targetRotY = Math.sin(autoIdleTime * 0.2) * 0.8;
+
+                statusElement.innerHTML = "autopilot";
+                statusElement.style.color = "#666";
+            } else if (isHandDetected) {
+                statusElement.innerHTML = "gesture control";
+                statusElement.style.color = "#ff3b30";
+            } else if (isMouseActive) {
+                statusElement.innerHTML = "mouse control";
+                statusElement.style.color = "#ffffff";
+            }
+
+            const lerpFactor = 0.08;
+            currentScale += (targetScale - currentScale) * lerpFactor;
+            currentRotX += (targetRotX - currentRotX) * lerpFactor;
+            currentRotY += (targetRotY - currentRotY) * lerpFactor;
+
+            updateOpticsUI(targetScale);
+
+            aridenUniforms.forEach((uniforms) => {
+                uniforms.uScale.value = currentScale * renderScaleMultiplier;
+                uniforms.uRotationX.value = currentRotX;
+                uniforms.uRotationY.value = currentRotY;
+            });
+
+            renderer.render(scene, camera);
+        }
+
+        const hands = new Hands({locateFile: (file) => {
+            return `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`;
+        }});
+
+        hands.setOptions({
+            maxNumHands: 1,
+            modelComplexity: 1,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7
+        });
+
+        hands.onResults(onResults);
+
+        function onResults(results) {
+            loadingElement.style.display = 'none';
+
+            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+                isHandDetected = true;
+                const hand = results.multiHandLandmarks[0];
+
+                const p1 = hand[4];
+                const p2 = hand[8];
+                const dist = Math.sqrt((p1.x-p2.x)**2 + (p1.y-p2.y)**2);
+                const normDist = Math.max(0, Math.min(1, (dist - 0.02) / 0.25));
+                targetScale = clampScale(minScale + normDist * (maxScale - minScale));
+
+                const y = hand[9].y;
+                const normY = Math.max(0, Math.min(1, (y - 0.1) / 0.8));
+                targetRotX = -0.6 + normY * 1.6;
+
+                const x = hand[9].x;
+                const normX = Math.max(0, Math.min(1, (x - 0.1) / 0.8));
+                targetRotY = -Math.PI + normX * Math.PI * 2;
+
+            } else {
+                isHandDetected = false;
+            }
+        }
+
+        const cameraUtils = new Camera(videoElement, {
+            onFrame: async () => {
+                await hands.send({image: videoElement});
+            },
+            width: 640,
+            height: 480
+        });
+
+        cameraUtils.start().catch(e => {
+            console.error(e);
+            loadingElement.innerText = "Camera startup failed";
+        });
+
+        function toggleFullScreen() {
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen();
+            } else if (document.exitFullscreen) {
+                document.exitFullscreen();
+            }
+        }
+
+        document.addEventListener('fullscreenchange', updateFullscreenButton);
+
+        initThree();
+
+    </script>
+</body>
+</html>
